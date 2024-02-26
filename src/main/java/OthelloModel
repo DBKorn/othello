@@ -1,0 +1,408 @@
+import javax.swing.*;
+import java.util.ArrayList;
+
+public class OthelloModel implements OthModInter{
+    int boardSize = 8;
+    OthModInter.GamePiece[][] board;
+    int moveCount;
+    int pieceCount;
+    int kosherCount; // for checking if one or both player have any moves
+    int whiteScore, blackScore;
+
+
+    public OthelloModel(){
+        gameInitializer();
+    }
+
+    private void gameInitializer(){
+        moveCount = 0;
+        pieceCount = 0;
+        kosherCount = 0;
+        whiteScore = blackScore = 2;
+        board = new OthModInter.GamePiece[boardSize][boardSize];
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                board[i][j] = OthModInter.GamePiece.BLANK;
+            }
+        }
+        board[3][3] = OthModInter.GamePiece.BLACK;
+        board[3][4] = OthModInter.GamePiece.WHITE;
+        board[4][3] = OthModInter.GamePiece.WHITE;
+        board[4][4] = OthModInter.GamePiece.BLACK;
+    }
+
+
+    @Override
+    public boolean placePiece(GamePiece color, int x, int y) {
+        boolean canIMove = anyKosherMoves(color);
+        if (!canIMove){
+            System.out.println("SKIP");
+            moveCount++;
+            return false;
+        }
+
+
+        if  (moveCount % 2 != 0 ){
+            int[] xy = cpu();
+            x = xy[0];
+            y = xy[1];
+
+            //moveCount++;
+            //return true;
+        }
+
+
+
+        if (canIMove && isMoveKosher(color, x, y, false) > 0) {
+            board[x][y] = color;
+            moveCount++;
+            pieceCount++;
+        }
+        isGameOver();
+        return true;
+    }
+
+    GamePiece whosTurn(){
+        if (moveCount % 2 == 0){
+            return GamePiece.BLACK;
+        }
+        return GamePiece.WHITE; //CPU is white
+    }
+
+    GamePiece whosNotTurn(){
+        GamePiece a = whosTurn();
+        if (a == GamePiece.WHITE){
+            return GamePiece.BLACK;
+        }
+        return GamePiece.BLACK;
+    }
+
+    public int[] cpu(){
+        ArrayList<int[]> location = new ArrayList<>();
+        ArrayList<Integer> points = new ArrayList<>();
+        int score, max, maxSpot = 0;
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if ( (score = isMoveKosher(whosTurn(), i, j, true) ) > 0 ){
+                    location.add(new int[]{i,j});
+                    points.add(score);
+                }
+            }
+        }
+
+        max = points.get(0);
+        for (int i = 1; i < points.size(); i++) {
+            if (max < points.get(i)){
+                max = points.get(i);
+                maxSpot = i;
+            }
+        }
+        int[] l = location.get(maxSpot);
+
+        return l;
+
+    }
+
+    private void flip(int row, int col) {
+        if (board[row][col] == GamePiece.BLACK) {
+            board[row][col] = GamePiece.WHITE;
+        } else {
+            board[row][col] = GamePiece.BLACK;
+        }
+    }
+
+    @Override
+    public void printPoints() {
+        System.out.println("Black: " + blackScore + " White: " + whiteScore);
+    }
+
+    public int isMoveKosher(GamePiece player, int row, int col, boolean justChecking) {
+        if  (board[row][col] != GamePiece.BLANK){
+            return 0;
+        }
+        GamePiece other = whosNotTurn();
+
+        //from x coordinate to right side
+        int flipXToRight = 0;
+        boolean xToRightBounded = false;
+        for (int i = col+1; i < boardSize; i++) { //check off by 1
+            if (board[row][i] == player){
+                xToRightBounded = true;
+                break;
+            }
+            if (board[row][i] == GamePiece.BLANK || (boardSize-i == 1 && board[row][i] == other)){ // if space is blank or at end of row and still other color (aka not surrounding opponent)
+                flipXToRight = 0;
+                break;
+            }
+            flipXToRight++;
+        }
+        if (!xToRightBounded){flipXToRight=0;}
+
+        //from x coordinate to left side
+        int flipXToLeft = 0;
+        boolean xToLeftBounded = false;
+        for (int i = col-1; i >=0; i--) { //check off by 1
+            if (board[row][i] == player){
+                xToLeftBounded = true;
+                break;
+            }
+            if (board[row][i] == GamePiece.BLANK || (i == 0 && board[row][i] == other)){
+                flipXToLeft = 0;
+                break;
+            }
+            flipXToLeft++;
+        }
+        if (!xToLeftBounded){flipXToLeft=0;}
+
+        //from y coordinate to bottom
+        int flipYToBot = 0;
+        boolean YToBotBounded = false;
+        for (int i = row+1; i < boardSize; i++) { //check off by 1
+            if (board[i][col] == player){
+                YToBotBounded = true;
+                break;
+            }
+            if (board[i][col] == GamePiece.BLANK || (boardSize-i == 1 && board[i][col] == other)){
+                flipYToBot = 0;
+                break;
+            }
+            flipYToBot++;
+        }
+        if (!YToBotBounded){flipYToBot=0;}
+
+        //from y coordinate to top
+        int flipYToTop = 0;
+        boolean YToTopBounded = false;
+        for (int i = row-1; i >= 0; i--) {
+            if (board[i][col] == player){
+                YToTopBounded = true;
+                break;
+            }
+            if (board[i][col] == GamePiece.BLANK || (i == 0 && board[i][col] == other)){
+                flipYToTop = 0;
+                break;
+            }
+            flipYToTop++;
+        }
+        if (!YToTopBounded){flipYToTop=0;}
+
+        //along up and right diagonal
+        int upRightDiag = 0;
+        boolean upRightDiagBounded = false;
+        for (int i = row-1, j = col+1; i >= 0 && j < boardSize; i--, j++) {
+            if (board[i][j] == player){
+                upRightDiagBounded = true;
+                break;
+            }
+            if (board[i][j] == GamePiece.BLANK || ( (i == 0 || i == boardSize-1 || j == 0 || j == boardSize-1) && board[i][j] == other && upRightDiag == 0) ){
+                upRightDiag = 0;
+                break;
+            }
+            upRightDiag++;
+        }
+        if (!upRightDiagBounded){upRightDiag=0;}
+
+        //along up and left diagonal
+        int upLeftDiag = 0;
+        boolean upLeftDiagBounded = false;
+        for (int i = row-1, j = col-1; i >= 0 && j >= 0; i--, j--) {
+            if (board[i][j] == player){
+                upLeftDiagBounded = true;
+                break;
+            }
+            if (board[i][j] == GamePiece.BLANK || ( (i == 0 || i == boardSize-1 || j == 0 || j == boardSize-1) && board[i][j] == other && upLeftDiag == 0) ){
+                upLeftDiag = 0;
+                break;
+            }
+            upLeftDiag++;
+        }
+        if (!upLeftDiagBounded){upLeftDiag=0;}
+
+        //along down and right diagonal
+        int downRightDiag = 0;
+        boolean downRightDiagBounded = false;
+        for (int i = row+1, j = col+1; i < boardSize && j < boardSize; i++, j++) {
+            if (board[i][j] == player){
+                downRightDiagBounded = true;
+                break;
+            }
+            if (board[i][j] == GamePiece.BLANK || ( (i == 0 || i == boardSize-1 || j == 0 || j == boardSize-1) && board[i][j] == other && downRightDiag == 0) ){
+                downRightDiag = 0;
+                break;
+            }
+            downRightDiag++;
+        }
+        if (!downRightDiagBounded){downRightDiag=0;}
+
+        //along down and left diagonal
+        int downLeftDiag = 0;
+        boolean downLeftDiagBounded = false;
+        for (int i = row+1, j = col-1; i < boardSize && j >= 0; i++, j--) {
+            if (board[i][j] == player){
+                downLeftDiagBounded = true;
+                break;
+            }
+            if (board[i][j] == GamePiece.BLANK || ( (i == 0 || i == boardSize-1 || j == 0 || j == boardSize-1) && board[i][j] == other && downLeftDiag == 0) ){
+                downLeftDiag = 0;
+                break;
+            }
+            downLeftDiag++;
+        }
+        if (!downLeftDiagBounded){downLeftDiag=0;}
+
+        if (!justChecking) {
+            bigFlipper(flipXToLeft, flipXToRight, flipYToBot, flipYToTop,
+                    upRightDiag, upLeftDiag, downLeftDiag, downRightDiag, row, col);
+        }
+
+        return flipXToLeft + flipXToRight + flipYToBot + flipYToTop+
+                upRightDiag + upLeftDiag + downLeftDiag + downRightDiag;
+    }
+
+    @Override
+    public int bigFlipper(int flipXToLeft , int flipXToRight, int flipYToBot,  int flipYToTop,
+                    int upRightDiag, int upLeftDiag, int downLeftDiag, int downRightDiag, int row, int col){
+        //straight flips
+        for (int i = col+1; i <= col+flipXToRight; i++) {
+            flip(row, i);
+        }
+
+        for (int i = col-flipXToLeft; i < col; i++) { // check off by 1
+            flip(row, i);
+        }
+
+        for (int i = row+1; i <= row+flipYToBot; i++) { //problem
+            flip(i, col);
+        }
+
+        for (int i = row - flipYToTop; i < row; i++) {
+            flip(i, col);
+        }
+
+        //diagonal flips
+        for (int w = 0, i = row-1, j = col+1; w < upRightDiag; w++, i--, j++) {
+            flip(i,j);
+        }
+
+        for (int w = 0, i = row-1, j = col-1; w < upLeftDiag; w++, i--, j--) {
+            flip(i,j);
+        }
+
+        for (int w = 0, i = row+1, j = col+1; w < downRightDiag; w++, i++, j++) {
+            flip(i,j);
+        }
+
+        for (int w = 0, i = row+1, j = col-1; w < downLeftDiag; w++, i++, j--) {
+            flip(i,j);
+        }
+
+        int totalPoints = flipXToLeft + flipXToRight + flipYToBot + flipYToTop
+                + upRightDiag + upLeftDiag + downLeftDiag + downRightDiag;
+
+        scoreKeeper(totalPoints);
+
+        ///*
+        printPoints();
+        System.out.println("flipXToLeft  " + flipXToLeft);
+        System.out.println("flipXToRight  " + flipXToRight);
+        System.out.println("flipYToBot  " + flipYToBot);
+        System.out.println("flipYToTop  " + flipYToTop);
+        System.out.println("upLeftDiag  " + upLeftDiag);
+        System.out.println("upRightDiag  " + upRightDiag);
+        System.out.println("downLeftDiag  " + downLeftDiag);
+        System.out.println("downRightDiag  " + downRightDiag);
+        System.out.println("MoveCount  " + moveCount);
+        System.out.println("-------------------------------------------------");
+        //*/
+
+        return totalPoints;
+    }
+
+    private void scoreKeeper(int shift){
+        ///*
+        GamePiece player = whosTurn();
+        if (player == GamePiece.BLACK){
+            blackScore += shift+1; //adds one for the piece placed on board
+            whiteScore -= shift;
+        } else{
+            blackScore -= shift;
+            whiteScore += shift+1;
+        }
+
+         //*/
+        /*
+        int wc = 0;
+        int bc = 0;
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (board[i][j]==GamePiece.WHITE){
+                    wc++;
+                }
+                if (board[i][j]==GamePiece.BLACK){
+                    bc++;
+                }
+            }
+        }
+        whiteScore = wc;
+        blackScore = bc;
+        GamePiece player = whosTurn();
+        if (player == GamePiece.BLACK){
+            blackScore++;
+        } else{
+            whiteScore++;
+        }
+         */
+    }
+
+    @Override
+    public boolean anyKosherMoves(GamePiece player) {
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (isMoveKosher(player, i, j, true) > 0){
+                    kosherCount = 0;
+                    return true;
+                }
+            }
+        }
+        kosherCount++;
+        return false;
+    }
+
+    GamePiece whatsInThatSquare(int x, int y){
+        return board[x][y];
+    }
+
+    @Override
+    public boolean isGameOver() {
+
+        if (boardSize*boardSize == pieceCount || kosherCount == 2 || blackScore == 0 || whiteScore == 0){
+            if (blackScore > whiteScore){
+                JOptionPane.showMessageDialog(null, "Black wins! " + blackScore + " to " + whiteScore);
+            } else if (blackScore < whiteScore){
+                JOptionPane.showMessageDialog(null, "White wins! " + whiteScore + " to " + blackScore);
+            } else {
+                JOptionPane.showMessageDialog(null, "Tie! Everyone loses! Score was " + whiteScore + " to " + blackScore);
+            }
+
+            JOptionPane.showMessageDialog(null, "To play again, just continue");
+            restart();
+
+        }
+        return false;
+    }
+
+    @Override
+    public void restart() {
+        board = null;
+        gameInitializer();
+    }
+
+    public int getBlackScore(){
+        return blackScore;
+    }
+
+    public int getWhiteScore(){
+        return whiteScore;
+    }
+
+}
